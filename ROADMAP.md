@@ -10,3 +10,6 @@
 - ETL for common sources
 - Classic analysis method
 - data grid views & mapbox views
+
+## note
+- default port: 8291
