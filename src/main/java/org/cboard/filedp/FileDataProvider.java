@@ -2,6 +2,7 @@ package org.cboard.filedp;
 
 import au.com.bytecode.opencsv.CSVReader;
 import com.alibaba.fastjson.JSON;
+import com.google.common.base.Stopwatch;
 import org.apache.commons.lang.StringUtils;
 import org.cboard.dataprovider.DataProvider;
 import org.cboard.dataprovider.annotation.DatasourceParameter;
@@ -14,6 +15,8 @@ import org.springframework.beans.factory.annotation.Value;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 
@@ -43,7 +46,7 @@ public class FileDataProvider extends DataProvider {
     @QueryParameter(label = "{{'DATAPROVIDER.TEXTFILE.FIELD_NAMES'|translate}}", placeholder = "<fieldName>[,<fieldName>]...(The file has fields header without input)", type = QueryParameter.Type.Input, order = 4)
     private String QUERY_PARAM_FIELD_NAMES = "fieldNames";
 
-    @QueryParameter(label = "{{'DATAPROVIDER.TEXTFILE.SEPRATOR'|translate}}", value = "\\\\t", placeholder = "default value is \\t (The DataType is JSON without input)", type = QueryParameter.Type.Input, order = 5)
+    @QueryParameter(label = "{{'DATAPROVIDER.TEXTFILE.SEPRATOR'|translate}}", value = "\\t", placeholder = "default value is \\t (The DataType is JSON without input)", type = QueryParameter.Type.Input, order = 5)
     private String QUERY_PARAM_SEPRATOR = "seprator";
 
     @QueryParameter(label = "{{'DATAPROVIDER.TEXTFILE.QUOTE_CHAR'|translate}}", value = "\\\"", placeholder = "default value is guillemets (The DataType is CSV must input)", type = QueryParameter.Type.Input, order = 6)
@@ -59,6 +62,7 @@ public class FileDataProvider extends DataProvider {
 
     @Override
     public String[][] getData() throws Exception {
+        Stopwatch stopwatch = Stopwatch.createStarted();
         String basePath = dataSource.get(DS_PARAM_BASE_PATH);
         String fileName = query.get(QUERY_PARAM_FILE_NAME);
         String encoding = StringUtils.isBlank(query.get(QUERY_PARAM_ENCODING)) ? "UTF-8" : query.get(QUERY_PARAM_ENCODING);
@@ -70,7 +74,6 @@ public class FileDataProvider extends DataProvider {
 
         String fullPath = basePath + fileName;
         LOG.info("INFO: Read file from {}", fullPath);
-
         BufferedReader reader = null;
         String[][] strings = null;
         try {
@@ -87,7 +90,8 @@ public class FileDataProvider extends DataProvider {
                 reader.close();
             }
         }
-
+        stopwatch.stop();
+        LOG.info("getData() using time: {}s", stopwatch.elapsed(TimeUnit.SECONDS));
         return strings;
     }
 
@@ -95,8 +99,7 @@ public class FileDataProvider extends DataProvider {
         BufferedReader reader = null;
         try {
             FileInputStream fis = new FileInputStream(filePath);
-            InputStreamReader isr = new InputStreamReader(fis, encoding);
-            reader = new BufferedReader(isr);
+            reader = new BufferedReader(new UnicodeReader(fis, encoding));
         } catch (Exception e) {
             LOG.error("ERROR:" + e.getMessage());
             throw new Exception("ERROR:" + e.getMessage(), e);
@@ -150,18 +153,28 @@ public class FileDataProvider extends DataProvider {
         if (StringUtils.isNotBlank(filedNames)) {
             result.add(filedNames.split(","));
         }
+        int columnSize = 0;
         try {
             // read line
             while ((tempString = reader.readLine()) != null) {
+                if (line == 0) {
+                    columnSize = tempString.split(seprator, -1).length;
+                }
                 if (StringUtils.isBlank(tempString.trim())) {
                     continue;
                 }
                 if (line++ > resultLimit) {
                     throw new CBoardException("Cube result count is greater than limit " + resultLimit);
                 }
-                List<String> lineList = Arrays.asList(tempString.split(seprator)).stream().map(column -> {
-                    return column.replaceAll(quoteStr, "");
-                }).collect(toList());
+                List<String> colArr = new ArrayList(Arrays.asList(tempString.split(seprator, -1)));
+                if (colArr.size() < columnSize) {
+                    IntStream.range(colArr.size(), columnSize).forEach(
+                            i -> colArr.add(i, "")
+                    );
+                }
+                List<String> lineList = colArr.stream().map(column ->
+                    column.replaceAll(quoteStr, "")
+                ).collect(toList());
                 result.add(lineList.toArray(new String[lineList.size()]));
             }
         } catch (IOException e) {

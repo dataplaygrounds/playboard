@@ -8,6 +8,24 @@
     color: black;
 }
 
+.box-header .box-title {
+    display: inline-block;
+    margin: 0;
+    line-height: 1;
+}
+
+.box-body {
+    padding: 5px;
+}
+
+.box-header {
+    padding: 11px 5px;
+}
+
+.panel-body {
+    padding: 9px 4px;
+}
+
 .toolbar-icon {
     cursor: pointer;
     font-size: large;
@@ -118,6 +136,8 @@
 }
 .cLine{  background-image: url(../imgs/line-active.png);  }
 .cLine.disabled{background-image: url(../imgs/line.png); }
+.cContrast{  background-image: url(../imgs/contrast-active.png);  }
+.cContrast.disabled{background-image: url(../imgs/contrast.png); }
 /*.cBar{  background-image: url(../imgs/bar-active.png);  }*/
 /*.cBar.disabled{background-image: url(../imgs/bar.png);  }*/
 .cScatter{  background-image: url(../imgs/scatter-active.png);  }
@@ -149,11 +169,14 @@
 .cHeatMapCalendar.disabled{ background-image: url(../imgs/heatMapCalendar.png); }
 .cHeatMapTable{ background-image: url(../imgs/heatMapTable-active.png); }
 .cHeatMapTable.disabled{ background-image: url(../imgs/heatMapTable.png); }
-.cMarkLineMap{ background-image: url(../imgs/markLineMap-active.png);}
-.cMarkLineMap.disabled{ background-image: url(../imgs/markLineMap.png);}
 .cLiquidFill{ background-image: url(../imgs/liquidFill-active.png); }
 .cLiquidFill.disabled{ background-image: url(../imgs/liquidFill.png); }
-
+.cChinaMap{ background-image: url(../imgs/chinaMap-active.png); }
+.cChinaMap.disabled{ background-image: url(../imgs/chinaMap.png); }
+.cChinaMapBmap{ background-image: url(../imgs/chinaMapBmap-active.png); }
+.cChinaMapBmap.disabled{ background-image: url(../imgs/chinaMapBmap.png); }
+.cRelation{ background-image: url(../imgs/relation-active.png); }
+.cRelation.disabled{ background-image: url(../imgs/relation.png); }
 
 .chart-type a.active{
     background-color: #FFF;

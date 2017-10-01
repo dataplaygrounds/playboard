@@ -12,23 +12,33 @@ import org.cboard.dataprovider.config.ConfigComponent;
 import org.cboard.dataprovider.config.DimensionConfig;
 import org.cboard.dataprovider.expression.NowFunction;
 import org.cboard.dataprovider.result.AggregateResult;
+import org.cboard.pojo.DashboardRole;
+import org.cboard.services.AuthenticationService;
+import org.cboard.services.RoleService;
 import org.cboard.util.NaturalOrderComparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Created by zyong on 2017/1/9.
  */
 public abstract class DataProvider {
 
+    @Autowired
+    private AuthenticationService authenticationService;
+    @Autowired
+    private RoleService roleService;
     private InnerAggregator innerAggregator;
     protected Map<String, String> dataSource;
     protected Map<String, String> query;
     private int resultLimit;
+    private boolean isUsedForTest = false;
     private long interval = 12 * 60 * 60; // second
 
     public static final String NULL_STRING = "#NULL";
@@ -99,11 +109,13 @@ public abstract class DataProvider {
     }
 
     private void checkAndLoad(boolean reload) throws Exception {
-        String key = getLockKey(dataSource, query);
+        String key = getLockKey();
         synchronized (key.intern()) {
             if (reload || !innerAggregator.checkExist()) {
                 String[][] data = getData();
-                innerAggregator.loadData(data, interval);
+                if (data != null) {
+                    innerAggregator.loadData(data, interval);
+                }
                 logger.info("loadData {}", key);
             }
         }
@@ -121,7 +133,7 @@ public abstract class DataProvider {
     private void evaluator(ConfigComponent e) {
         if (e instanceof DimensionConfig) {
             DimensionConfig dc = (DimensionConfig) e;
-            dc.setValues(dc.getValues().stream().map(v -> getFilterValue(v)).collect(Collectors.toList()));
+            dc.setValues(dc.getValues().stream().flatMap(v -> getFilterValue(v)).collect(Collectors.toList()));
         }
         if (e instanceof CompositeConfig) {
             CompositeConfig cc = (CompositeConfig) e;
@@ -129,14 +141,24 @@ public abstract class DataProvider {
         }
     }
 
-    private String getFilterValue(String value) {
+    private Stream<String> getFilterValue(String value) {
+        List<String> list = new ArrayList<>();
         if (value == null || !(value.startsWith("{") && value.endsWith("}"))) {
-            return value;
+            list.add(value);
+        } else if ("{loginName}".equals(value)) {
+            list.add(authenticationService.getCurrentUser().getUsername());
+        } else if ("{userName}".equals(value)) {
+            list.add(authenticationService.getCurrentUser().getName());
+        } else if ("{userRoles}".equals(value)) {
+            List<DashboardRole> roles = roleService.getCurrentRoleList();
+            roles.forEach(role -> list.add(role.getRoleName()));
+        } else {
+            list.add(AviatorEvaluator.compile(value.substring(1, value.length() - 1), true).execute().toString());
         }
-        return AviatorEvaluator.compile(value.substring(1, value.length() - 1), true).execute().toString();
+        return list.stream();
     }
 
-    private String getLockKey(Map<String, String> dataSource, Map<String, String> query) {
+    public String getLockKey() {
         return Hashing.md5().newHasher().putString(JSONObject.toJSON(dataSource).toString() + JSONObject.toJSON(query).toString(), Charsets.UTF_8).hash().toString();
     }
 
@@ -164,6 +186,10 @@ public abstract class DataProvider {
 
     abstract public String[][] getData() throws Exception;
 
+    public void test() throws Exception {
+        getData();
+    }
+
     public void setDataSource(Map<String, String> dataSource) {
         this.dataSource = dataSource;
     }
@@ -184,8 +210,41 @@ public abstract class DataProvider {
         this.interval = interval;
     }
 
+    public InnerAggregator getInnerAggregator() {
+        return innerAggregator;
+    }
+
     public void setInnerAggregator(InnerAggregator innerAggregator) {
         this.innerAggregator = innerAggregator;
+    }
+
+    public boolean isUsedForTest() {
+        return isUsedForTest;
+    }
+
+    public void setUsedForTest(boolean usedForTest) {
+        isUsedForTest = usedForTest;
+    }
+
+    public static ConfigComponent separateNull(ConfigComponent configComponent) {
+        if (configComponent instanceof DimensionConfig) {
+            DimensionConfig cc = (DimensionConfig) configComponent;
+            if (("=".equals(cc.getFilterType()) || "≠".equals(cc.getFilterType())) && cc.getValues().size() > 1 &&
+                    cc.getValues().stream().anyMatch(s -> DataProvider.NULL_STRING.equals(s))) {
+                CompositeConfig compositeConfig = new CompositeConfig();
+                compositeConfig.setType("=".equals(cc.getFilterType()) ? "OR" : "AND");
+                cc.setValues(cc.getValues().stream().filter(s -> !DataProvider.NULL_STRING.equals(s)).collect(Collectors.toList()));
+                compositeConfig.getConfigComponents().add(cc);
+                DimensionConfig nullCc = new DimensionConfig();
+                nullCc.setColumnName(cc.getColumnName());
+                nullCc.setFilterType(cc.getFilterType());
+                nullCc.setValues(new ArrayList<>());
+                nullCc.getValues().add(DataProvider.NULL_STRING);
+                compositeConfig.getConfigComponents().add(nullCc);
+                return compositeConfig;
+            }
+        }
+        return configComponent;
     }
 
 }
