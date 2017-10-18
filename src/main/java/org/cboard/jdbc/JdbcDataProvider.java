@@ -345,10 +345,21 @@ public class JdbcDataProvider extends DataProvider implements Aggregatable, Init
 
     @Override
     public void afterPropertiesSet() throws Exception {
-        String subQuery = getAsSubQuery(query.get(SQL));
+        String subQuery = null;
+        if (query != null) {
+            subQuery = getAsSubQuery(query.get(SQL));
+        }
         SqlHelper sqlHelper = new SqlHelper(subQuery, true);
         if (!isUsedForTest()) {
-            sqlHelper.getSqlSyntaxHelper().setColumnTypes(getColumnType());
+            Map<String, Integer> columnTypes = null;
+            try {
+                columnTypes = getColumnType();
+            } catch (Exception e) {
+                //  getColumns() and test() methods do not need columnTypes properties,
+                // it doesn't matter for these methods even getMeta failed
+                LOG.warn("getColumnType failed: {}", e.getMessage());
+            }
+            sqlHelper.getSqlSyntaxHelper().setColumnTypes(columnTypes);
         }
         this.sqlHelper = sqlHelper;
     }
