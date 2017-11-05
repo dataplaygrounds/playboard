@@ -5,12 +5,14 @@
     <div dnd-list="curWidget.config.groups"
          dnd-inserted="dndTransfer.toKeysGroups(curWidget.config.groups,index,item,type)"
          dnd-allowed-types="['dimension','select','group','key','filter']"
-         class="form-control" style="min-height: 35px;height: auto;padding: 0px">
+         class="form-control" style="min-height: 35px;height: auto;padding: 0px"
+         ng-class="{highlight: targetHighlight.column}">
         <div class="dndPlaceholder sort-highlight"
              style="height: 24px; width: 93px;margin: 3px 3px;display: inline-block;vertical-align: middle;">
         </div>
         <div ng-repeat="o in curWidget.config.groups" dnd-draggable="o" dnd-effect-allowed="move"
              dnd-moved="curWidget.config.groups.splice($index, 1)" dnd-type="'group'"
+             dnd-dragstart="onDragstart('dimension')" dnd-dragend="onDragCancle()"
              class="btn-group" style="cursor: move;margin: 3px 3px;">
             <button type="button" class="btn btn-default btn-sm" style="cursor: move;"
                     ng-click="curWidget.config.groups.splice($index, 1);">
